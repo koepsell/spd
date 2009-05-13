@@ -24,10 +24,10 @@
 
 # GUESS SAGE_ROOT from pwd
 SAVEDIR="`pwd`"
-if [ -f sage -a -d spkg ]; then
+if [ -f spd -a -d spkg ]; then
     GUESSED_SAGE_ROOT="`pwd`"
 else 
-    if [ -f ../../sage -a -d ../../spkg ]; then
+    if [ -f ../../spd -a -d ../../spkg ]; then
         cd ../../
         GUESSED_SAGE_ROOT="`pwd`"
     else
@@ -135,7 +135,7 @@ if [ "$SAGE_SERVER" = "" ]; then
 fi
 
 if [ "$DOT_SAGE" = "" ]; then
-    DOT_SAGE="$HOME/.sage/"
+    DOT_SAGE="$HOME/.spd/"
     export DOT_SAGE
 fi
 
