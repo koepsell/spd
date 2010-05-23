@@ -1,22 +1,47 @@
 #!/usr/bin/env python
 
 ####################################################################
-# Doctest a single Python or Cython file, using Sage's custom
-# doctesting tags and framework built on top of Python's doctest
-# functionality.  In particular, this allows for sage: prompts,
-# preparsing, optional doctests, random behavior, etc. 
+# Doctest a single Python, Cython, Sage, TeX or ReST file, using
+# Sage's custom doctesting tags and framework built on top of
+# Python's doctest functionality.  In particular, this allows for
+# sage: prompts, preparsing, optional doctests, random behavior, etc. 
+#
+# Return value in process exit code:
+# 0: all tests passed
+# 1: file not found
+# 2: KeyboardInterrupt
+# 3: doctest process was terminated by a signal
+# 4: the doctesting framework raised an exception
+# 100: failed doctests
 ####################################################################
-
-# the default timeout for doctests: 6 minutes (in seconds)
-TIMEOUT      = 6 * 60
-# the timeout value for long doctests: 30 minutes (in seconds)
-TIMEOUT_LONG = 30 * 60
-# the timeout for doctests running under valgrind tools: unreasonably long
-TIMEOUT_VALGRIND = 1024*1024
 
 # System imports
 import os, re, sys, signal, time, shutil, tempfile, random
 
+# if any of the following environment variables are set, use them for
+# the timeout lengths.
+TIMEOUT = os.getenv('SAGE_TIMEOUT')
+TIMEOUT_LONG = os.getenv('SAGE_TIMEOUT_LONG')
+TIMEOUT_VALGRIND = os.getenv('SAGE_TIMEOUT_VALGRIND')
+
+if TIMEOUT is None:
+    # the default timeout for doctests: 6 minutes (in seconds)    
+    TIMEOUT = 6 * 60
+else:
+    # output from os.getenv is a string: convert to a number
+    TIMEOUT = float(TIMEOUT)
+    
+if TIMEOUT_LONG is None:
+    # the timeout value for long doctests: 30 minutes (in seconds)
+    TIMEOUT_LONG = 30 * 60
+else:
+    TIMEOUT_LONG = float(TIMEOUT_LONG)
+    
+if TIMEOUT_VALGRIND is None:
+    # the timeout for doctests running under valgrind tools: unreasonably long
+    TIMEOUT_VALGRIND = 1024 * 1024
+else:
+    TIMEOUT_VALGRIND = float(TIMEOUT_VALGRIND)
 
 long_time          = False
 only_optional      = False
@@ -39,10 +64,17 @@ def is_64bit():
 # Temporary files
 ######################################################    
 DOT_SAGE = os.environ['DOT_SAGE']
-SAGE_TMP ='%s/tmp/%s/'%(DOT_SAGE,os.getpid())
+if 'SAGE_TESTDIR' not in os.environ or os.environ['SAGE_TESTDIR'] is "":
+    SAGE_TESTDIR = os.path.join(DOT_SAGE, "tmp")
+else:
+    SAGE_TESTDIR = os.environ['SAGE_TESTDIR']
+
+tmpfiles = [] # list of temporary files to be deleted if doctesting succeeds
+
 def delete_tmpfiles():
     try:
-        pass
+        for f in tmpfiles:
+            os.remove(f)
     except OSError:
         pass
     
@@ -51,40 +83,44 @@ def delete_tmpfiles():
 ######################################################    
 SAGE_ROOT = os.environ["SAGE_ROOT"]
 LD = os.environ["LD_LIBRARY_PATH"]
-os.environ["LD_LIBRARY_PATH"] = SAGE_ROOT + "/local/lib:" + LD
-os.environ["PYTHONPATH"]=SAGE_ROOT + "/local/lib/python/site-packages"
+os.environ["LD_LIBRARY_PATH"] = os.path.join(SAGE_ROOT, 'local',
+                                             'lib') + ":" + LD
+os.environ["PYTHONPATH"] = os.path.join(SAGE_ROOT, 'local', 'lib', 'python',
+                                        'site-packages')
 if os.environ.has_key('SAGE_PATH'):
-    os.environ["PYTHONPATH"]= os.environ["PYTHONPATH"]+ ':'+os.environ['SAGE_PATH']
+    os.environ["PYTHONPATH"] = os.environ["PYTHONPATH"] + ':' + os.environ['SAGE_PATH']
 
 
 ######################################################
 # Custom flags for the valgrind modes
 ######################################################
+logfile = ' --log-file=' + os.path.join('$HOME', '.sage', 'valgrind', 'sage-%s') + ' '
 try:
-    SAGE_MEMCHECK_FLAGS=os.environ['SAGE_MEMCHECK_FLAGS']
+    SAGE_MEMCHECK_FLAGS = os.environ['SAGE_MEMCHECK_FLAGS']
     print SAGE_MEMCHECK_FLAGS
 except:
-    SAGE_MEMCHECK_FLAGS=" --leak-resolution=high --log-file=$HOME/.sage/valgrind/sage-memcheck.%p --leak-check=full --num-callers=25 --suppressions=$SAGE_LOCAL/lib/valgrind/sage.supp "
+    suppfile = os.path.join('$SAGE_LOCAL', 'lib', 'valgrind', 'sage.supp')
+    SAGE_MEMCHECK_FLAGS = " --leak-resolution=high %s --leak-check=full --num-callers=25 --suppressions=%s " % (logfile % 'memcheck.%p', suppfile)
 
 try:
-    SAGE_MASSIF_FLAGS=os.environ['SAGE_MASSIF_FLAGS']
+    SAGE_MASSIF_FLAGS = os.environ['SAGE_MASSIF_FLAGS']
 except:
-    SAGE_MASSIF_FLAGS=" --depth=6 --log-file=$HOME/.sage/valgrind/sage-massif.%p "
+    SAGE_MASSIF_FLAGS = " --depth=6 " + (logfile % 'massif.%p')
 
 try:
-    SAGE_CALLGRIND_FLAGS=os.environ['SAGE_CALLGRIND_FLAGS']
+    SAGE_CALLGRIND_FLAGS = os.environ['SAGE_CALLGRIND_FLAGS']
 except:
-    SAGE_CALLGRIND_FLAGS = " --log-file=$HOME/.sage/valgrind/sage-callgrind.%p "
+    SAGE_CALLGRIND_FLAGS = logfile % 'callgrind.%p'
 
 try:
-    SAGE_CACHEGRIND_FLAGS=os.environ['SAGE_CACHEGRIND_FLAGS']
+    SAGE_CACHEGRIND_FLAGS = os.environ['SAGE_CACHEGRIND_FLAGS']
 except:
-    SAGE_CACHEGRIND_FLAGS=" --log-file=$HOME/.sage/valgrind/sage-cachegrind.%p "
+    SAGE_CALLGRIND_FLAGS = logfile % 'cachegrind.%p'
 
 try:
-    SAGE_OMEGA_FLAGS=os.environ['SAGE_OMEGA_FLAGS']
+    SAGE_OMEGA_FLAGS = os.environ['SAGE_OMEGA_FLAGS']
 except:
-   SAGE_OMEGA_FLAGS = " --log-file=$HOME/.sage/valgrind/sage-omega.%p "
+    SAGE_OMEGA_FLAGS = logfile % 'omega.%p'
 
 ######################################################
 # The Python binary
@@ -124,7 +160,12 @@ def new_index(n):
         return n
 
 def test_code(filename):
-    dict = { 'DIR'             : repr('%s/local/bin' % SAGE_ROOT),
+    # Process exit codes for the generated doctest runner script:
+    # 0: everything passed
+    # 1-253: number of failed doctests
+    # 254: >= 254 doctests failed
+    # 255: exception raised by doctesting framework
+    dict = { 'DIR'             : repr(os.path.join(SAGE_ROOT, 'local', 'bin')),
              'FILENAME'        : repr(filename),
              'OUTPUT_FILENAME' : repr(filename + '.timeit.sobj'),
              'TIMEIT'          : do_timeit, # global
@@ -143,18 +184,27 @@ if __name__ ==  '__main__':
     m = sys.modules[__name__]
     m.__file__ = %(FILENAME)s
 
-    # configure special sage doc test runner
-    runner = sagedoctest.SageDocTestRunner(checker=None, verbose=verbose, optionflags=0)
-    runner._collect_timeit_stats = do_timeit
-    runner._reset_random_seed = True
+    try:
 
-    runner = sagedoctest.testmod_returning_runner(m,
-                   # filename=%(FILENAME)s,
-                   verbose=verbose,
-                   globs=globals(),
-                   runner=runner)
-    runner.save_timeit_stats_to_file_named(output_filename)
+        # configure special sage doc test runner
+        runner = sagedoctest.SageDocTestRunner(checker=None, verbose=verbose, optionflags=0)
+        runner._collect_timeit_stats = do_timeit
+        runner._reset_random_seed = True
+
+        runner = sagedoctest.testmod_returning_runner(m,
+                       # filename=%(FILENAME)s,
+                       verbose=verbose,
+                       globs=globals(),
+                       runner=runner)
+        runner.save_timeit_stats_to_file_named(output_filename)
+    except:
+        quit_sage(verbose=False)
+        import traceback
+        traceback.print_exc(file=sys.stdout)
+        sys.exit(255)
     quit_sage(verbose=False)
+    if runner.failures > 254:
+        sys.exit(254)
     sys.exit(runner.failures)
 """ % dict
 
@@ -315,9 +365,6 @@ def extract_doc(file_name, library_code=False):
                     Sage core library code, so we do not import it,
                     and do doctest in a temporary directory.
     """
-    a = os.path.abspath(file_name)
-    i = a.rfind("sage/")
-
     F = open(file_name).readlines()
     # Put line numbers on every input line
     v = []
@@ -330,8 +377,7 @@ def extract_doc(file_name, library_code=False):
                 j += 1
                 i += 1
                 L = L[:-1] + F[j].lstrip().lstrip('...').rstrip()
-            #L += '\t\t#<--- "LINE %s of %s"'%(i, file_name)
-            L += '###_sage"line %s:_sage_    %s_sage"'%(i, L[4:].strip())
+            L += '###_sage"line %s:_sage_    %s_sage"'%(i, L.strip())
         j += 1
         i += 1
         v.append(L)
@@ -355,13 +401,13 @@ def extract_doc(file_name, library_code=False):
     
     F = F.replace('\'"""\'','')
 
-    if file_name[-4:] == ".tex":
+    base, ext = os.path.splitext(file_name)
+    name = os.path.basename(base)
+    if ext == ".tex":
         F = pythonify_tex(F)
-    elif file_name[-4:] == ".rst":
+    elif ext == ".rst":
         F = pythonify_rst(F)
   
-    n = 0
-    i = 0
     s = "# -*- coding: utf-8 -*-\n"
     s += "from sage.all_cmdline import *; \n"
     s += "import sage.plot.plot; sage.plot.plot.DOCTEST_MODE=True\n"  # turn off image popup
@@ -369,9 +415,9 @@ def extract_doc(file_name, library_code=False):
 def warning_function(f):
     import warnings
 
-    def doctest_showwarning(message, category, filename, lineno, file=f):
+    def doctest_showwarning(message, category, filename, lineno, file=f, line=None):
         try:
-            file.write(warnings.formatwarning(message, category, 'doctest', lineno))
+            file.write(warnings.formatwarning(message, category, 'doctest', lineno, line))
         except IOError:
             pass # the file (probably stdout) is invalid
     return doctest_showwarning
@@ -382,17 +428,22 @@ def change_warning_output(file):
 """
 
     if not library_code:
-        base, ext = os.path.splitext(file_name)
-        if ext == '.py':
-            s += "from %s import *\n\n"%(base)
-        elif ext in ['.pyx','.spyx']:
-            s += "cython(open('%s').read())\n\n"%file_name
+        if ext in ['.py', '.pyx','.spyx']:
+            os.system('cp -f %s %s' % (file_name, SAGE_TESTDIR))
+            tmpfiles.append(os.path.join(SAGE_TESTDIR, '%s%s' % (name, ext)))
+            if ext == '.py':
+                s += "from %s import *\n\n" % name
+            else:
+                s += "cython(open('%s').read())\n\n" % file_name
         elif ext == '.sage':
-            os.system('sage -preparse file_name')
-            s += "from %s import *\n\n"%(base)
-        else:
-            assert False
+            os.system('sage -preparse %s' % file_name)
+            os.system('mv -f %s.py %s' % (base, SAGE_TESTDIR))
+            tmpfiles.append(os.path.join(SAGE_TESTDIR, name + '.py'))
+            s += "from %s import *\n\n" % (name)
+        if ext in ['.py', '.sage']:
+            tmpfiles.append(os.path.join(SAGE_TESTDIR, name + '.pyc'))
 
+    n = 0
     while True:
         i = F.find('"""')
         if i == -1: break
@@ -468,19 +519,22 @@ def pythonify_rst(F):
     
     def get_next_verbatim_block(s, pos):
         while True:
-            pos = s.find('\n::', pos)
+            # regular expression search in string s[pos:] for:
+            # whitespace followed by "::" at the start of a line
+            srch = re.search('^(\s*).*::\s*$', s[pos:], re.M)
 
-            #Return -1 if we can't find any verbatim
-            #blocks
-            if pos == -1:
-                return "", pos, False
+            #Return -1 if we don't find anything.
+            if srch is None:
+               return "", -1, False 
+            
+            pos += srch.start()
 
             prev_line = F.rfind("\n", 0, pos)
             start_of_options = F.rfind("\n", 0, prev_line if prev_line != -1 else 0)
             options = F[start_of_options:pos]
 
-            pos += 3
-            
+            pos += (srch.end() - srch.start())
+
             #Don't return skipped blocks
             if '.. skip' in options:
                 continue
@@ -489,14 +543,18 @@ def pythonify_rst(F):
             #block
             link_previous = True if '.. link' in options else False
 
-            #Find the first line that isn't
-            #indented (i.e., not in the verbatim block)
-            match = re.compile("^\S", re.M).search(s, pos)
+            #Find the first line that isn't indented as much as
+            #whatever followed the double colon.  The whitespace before
+            #the double colon is stored in srch.groups()[0]
+            lw = len(srch.groups()[0])  # length of whitespace before ::
+            #So match anything of the form
+            # beg. of line + whitespace of length at most lw + nonwhitespace
+            no_indent = re.search("^\s{,%s}\S"%lw, s[pos:], re.M)
 
-            if match is None:
+            if no_indent is None:
                 return s[pos:], None, link_previous
 
-            block, pos = s[pos:match.start()], match.start()
+            block, pos = s[pos:pos+no_indent.start()], pos+no_indent.start()
             if re.compile('^\s*sage: ', re.M).search(block) is not None:
                 return block, pos, link_previous
 
@@ -547,7 +605,7 @@ def post_process(s, file, tmpname):
     s = r.sub('\n',s)
     if cnt > 0:
         s += "For whitespace errors, see the file %s"%tmpname
-    return s
+    return (s, cnt)
 
 def test_file(file, library_code):
     if os.path.exists(file):
@@ -557,17 +615,10 @@ def test_file(file, library_code):
         if len(s) == 0:
             sys.exit(0)
 
-        if library_code:
-            if 'SAGE_TESTDIR' not in os.environ or os.environ['SAGE_TESTDIR'] is "":
-                SAGE_TESTDIR = os.environ['SAGE_ROOT']+"/tmp"
-            else:
-                SAGE_TESTDIR = os.environ['SAGE_TESTDIR']
-        else:
-            SAGE_TESTDIR = '.'
-
-        f = "%s/.doctest_%s.py"%(SAGE_TESTDIR,name)
+        f = os.path.join(SAGE_TESTDIR, ".doctest_%s.py" % name)
 
         open(f,"w").write(s)
+        tmpfiles.append(f)
         cmd = "%s %s"%(PYTHON, f)
         if gdb:
             print "*"*80
@@ -585,7 +636,7 @@ def test_file(file, library_code):
         if omega:
             cmd = "valgrind --tool=exp-omega " + SAGE_OMEGA_FLAGS + cmd
 
-        VALGRIND = '%s/valgrind/'%DOT_SAGE
+        VALGRIND = os.path.join(DOT_SAGE, 'valgrind')
         if not os.path.exists(VALGRIND):
           os.makedirs(VALGRIND)
 
@@ -623,19 +674,25 @@ def test_file(file, library_code):
         if time.time() - tm >= TIMEOUT:
             err += "*** *** Error: TIMED OUT! *** ***"
             print err
-            
-        s = post_process(out, file, f)  + err
-        numfail = s.count('Failed') + s.count('Error') - s.count('TypeError')
-        if numfail == 0 and e>0 and verbose:
+
+        s, numfail = post_process(out, file, f)
+        s += err
+
+        if e == 255:
+            # The doctesting code raised an exception
+            if not verbose:
+                print "Exception raised by doctesting framework. Use -verbose for details."
+            sys.exit(4)
+
+        if numfail == 0 and e > 0:
             numfail = e
         if numfail > 0:
             if not (verbose or gdb or memcheck or massif or cachegrind):
                 print s
-            delete_tmpfiles()
-            sys.exit(4)
-        elif e !=0:
+            sys.exit(100)
+        elif e < 0:
             if not verbose:
-                print "A mysterious error (perhaps a memory error?) occurred, which may have crashed doctest."
+                print "The doctested process was killed by signal %s" % (-e)
             sys.exit(3)
         else:
             delete_tmpfiles()
@@ -643,7 +700,6 @@ def test_file(file, library_code):
     else:
         print "Error running %s, since file %s does not exist."%(
             argv[0], argv[1])
-        delete_tmpfiles()
         sys.exit(1)
 
 
@@ -718,6 +774,7 @@ if __name__ ==  '__main__':
         massif     = has_opt('massif')
         cachegrind = has_opt('cachegrind')
         omega      = has_opt('omega')
+        force_lib  = has_opt('force_lib')
         random_order = parse_rand()
         only_optional, only_optional_tags = parse_only_opt()
         if long_time:
@@ -727,10 +784,14 @@ if __name__ ==  '__main__':
         if argv[1][0] == '-':
             usage()
             
-        library_code = True
         ext = os.path.splitext(argv[1])[1]
-        if ext in ['.spyx', '.sage'] or \
-                 not (SAGE_ROOT.strip('/') + '/devel' in os.path.abspath(argv[1])):
+
+        library_code = True
+        dev_path = os.path.realpath(os.path.join(SAGE_ROOT, 'devel'))
+        our_path = os.path.realpath(argv[1])
+
+        if not force_lib and (ext in ['.spyx', '.sage'] or
+                              not dev_path in our_path):
             library_code = False
 
         try:

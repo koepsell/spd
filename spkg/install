@@ -1,8 +1,12 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 CUR=`pwd`
 cd ..
 SAGE_ROOT=`pwd`
+# Storing the start time of the build process. The time is stored in
+# seconds since 1970-01-01 in a hidden file called
+# "SAGE_ROOT/.BUILDSTART". See ticket #6744.
+echo `date -u "+%s"` > .BUILDSTART
 cd "$CUR"
 SAGE_LOCAL="$SAGE_ROOT/local"
 PATH="$SAGE_ROOT:$SAGE_LOCAL/bin:$PATH"
@@ -17,7 +21,7 @@ if [ ! -f "$SAGE_LOCAL/bin/sage-spkg" ]; then
     if [ ! -d "$SAGE_LOCAL/bin" ]; then
         mkdir "$SAGE_LOCAL/bin"
     fi
-    cp base/sage-* "$SAGE_LOCAL/bin/"
+    cp base/sage-* base/testcc.sh base/testcxx.sh "$SAGE_LOCAL/bin/"
 fi
 
 ############
@@ -53,11 +57,17 @@ export BLAS
 BOEHM_GC=`$newest boehm_gc`
 export BOEHM_GC
 
+BOOST_CROPPED=`$newest boost-cropped`
+export BOOST_CROPPED
+
+CLIQUER=`$newest cliquer`
+export CLIQUER
+
 CDDLIB=`$newest cddlib`
 export CDDLIB
 
-CLISP=`$newest clisp`
-export CLISP
+ECL=`$newest ecl`
+export ECL
 
 CONWAY=`$newest conway_polynomials`
 if [ $? -ne 0 ]; then
@@ -78,9 +88,6 @@ export CVXOPT
 DOCUTILS=`$newest docutils`
 export DOCUTILS
 
-#DSAGE=`$newest dsage`
-#export DSAGE
-
 ECM=`$newest ecm`
 export ECM
 
@@ -92,6 +99,9 @@ export EXTCODE
 
 F2C=`$newest f2c`
 export F2C
+
+ICONV=`$newest iconv`
+export ICONV
 
 #FLEX=`$newest flex`
 #export FLEX
@@ -118,14 +128,11 @@ export PYTHON_GNUTLS
 
 ############# end gnutls crypto
 
-PYPROCESSING=`$newest pyprocessing`
-export PYPROCESSING
+PIL=`$newest pil`
+export PIL
 
 LIBM4RI=`$newest libm4ri`
 export LIBM4RI
-
-DSAGE=`$newest dsage`
-export DSAGE 
 
 FORTRAN=`$newest fortran`
 export FORTRAN
@@ -157,8 +164,8 @@ export GIVARO
 GHMM=`$newest ghmm`
 export GHMM
 
-GMP=`$newest gmp`
-export GMP
+MPIR=`$newest mpir`
+export MPIR
 
 GRAPHS=`$newest graphs`
 export GRAPHS
@@ -187,20 +194,11 @@ export LINBOX
 IML=`$newest iml`
 export IML
 
-JMOL=`$newest jmol`
-export JMOL
-
 JINJA=`$newest jinja`
 export JINJA
 
-JSMATH_SPKG=`$newest jsmath`
-export JSMATH_SPKG
-
-JQUERY_SPKG=`$newest jquery`
-export JQUERY_SPKG
-
-JQUERYUI_SPKG=`$newest jqueryui`
-export JQUERYUI_SPKG
+JINJA2=`$newest jinja2` 
+export JINJA2 
 
 MATPLOTLIB=`$newest matplotlib`
 export MATPLOTLIB
@@ -222,6 +220,9 @@ export MOIN
 
 MPFR=`$newest mpfr`
 export MPFR
+
+MPMATH=`$newest mpmath`
+export MPMATH
 
 NETWORKX=`$newest networkx`
 export NETWORKX
@@ -256,6 +257,15 @@ export PYNAC
 CYTHON=`$newest cython`
 export CYTHON
 
+RATPOINTS=`$newest ratpoints`
+export RATPOINTS
+
+SAGENB=`$newest sagenb`
+export SAGENB
+
+SAGETEX=`$newest sagetex`
+export SAGETEX
+
 SPHINX=`$newest sphinx`
 export SPHINX
 
@@ -283,9 +293,6 @@ export PYCRYPTO
 PYTHON=`$newest python`
 export PYTHON
 
-QUADDOUBLE=`$newest quaddouble`
-export QUADDOUBLE
-
 R=`$newest r`
 export R
 
@@ -309,9 +316,6 @@ export SCIPY_SANDBOX
 
 TACHYON=`$newest tachyon`
 export TACHYON
-
-TINYMCE_SPKG=`$newest tinyMCE`
-export TINYMCE_SPKG
 
 TWISTED=`$newest twisted`
 export TWISTED
@@ -353,14 +357,22 @@ export ZNPOLY
 # NOW do the actual build
 
 time make -f standard/deps $1
-"$SAGE_ROOT"/sage -docbuild --jsmath all html
+
+# added by Burcin Erocal, see trac #6295.
+if [ $? -ne 0 ]; then
+    echo "Error building Sage."
+    exit 1
+fi
 
 if [ "$1" = "all" -a $? = 0 ]; then
     echo "To install gap, gp, singular, etc., scripts"
     echo "in a standard bin directory, start sage and"
     echo "type something like"
     echo "   sage: install_scripts('/usr/local/bin')"
-    echo "at the SAGE command prompt."
+    echo "at the Sage command prompt."
     echo ""
-    echo "SAGE build/upgrade complete!"
+    echo "To build the documentation, run"
+    echo "   make doc"
+    echo ""
+    echo "Sage build/upgrade complete!"
 fi
