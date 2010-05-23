@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from __future__ import with_statement
-import os, signal, sys, time, thread, threading, tempfile, pickle
+import os, signal, sys, time, thread, threading, tempfile, pickle, multiprocessing
 
 ####################################
 
@@ -17,36 +17,14 @@ except:
     numglobaliteration = 1
 
 SAGE_ROOT = os.environ['SAGE_ROOT']
-BUILD_DIR = os.path.realpath(SAGE_ROOT + "/devel/sage/build")
+SAGE_SITE = os.path.realpath(os.path.join(os.environ['SAGE_LOCAL'],
+                                          'lib', 'python', 'site-packages'))
+BUILD_DIR = os.path.realpath(os.path.join(SAGE_ROOT, 'devel', 'sage', 'build'))
 
 print 'Global iterations: ' + str(numglobaliteration)
 print 'File iterations: ' + str(numiteration)
 
 abort = False
-
-def run(x):
-    global abort
-    try:
-        while True:
-            filemutex.acquire()
-            if len(files)!=0 and abort==False:
-                F = files.pop()
-                filemutex.release()
-                base, ext = os.path.splitext(F)
-                if use_sage_only or ext == '.sage':
-                    e = test(F, 'doctest_tex ' + opts)
-                elif ext in ['.py', '.pyx', '.tex', '.pxi', '.rst']:
-                    e = test(F, 'doctest '+opts)
-                else:
-                    continue # prefer silence to: raise TypeError, "Unknown File %s" % F
-                if e==-2:
-                    raise KeyboardInterrupt
-            else:
-               filemutex.release()
-               return
-    except KeyboardInterrupt:
-        abort = True
-        return
 
 def abspath(x):
     """
@@ -100,16 +78,17 @@ def skip(F):
     if not os.path.exists(F):
         return True
     G = abspath(F)
-    i = G.rfind('/')
-    if os.path.exists('%s/nodoctest.py'%G[:i]):
+    i = G.rfind(os.path.sep)
+    if os.path.exists(os.path.join(G[:i], 'nodoctest.py')):
         printmutex.acquire()
         print "%s (skipping) -- nodoctest.py file in directory"%abs(F)
         printmutex.release()
         return True
     filenm = os.path.split(F)[1]
-    if filenm == "all.py" or filenm == "__init__.py" \
-          or filenm[0] == '.' or '/.' in G.lstrip('/.') or \
-          'nodoctest' in open(G).read()[:50]:
+    if (filenm[0] == '.' or (os.path.sep + '.' in G.lstrip(os.path.sep + '.'))
+        or 'nodoctest' in open(G).read()[:50]):
+        return True
+    if G.find(os.path.join('doc', 'output')) != -1:
         return True
     if not (os.path.splitext(F)[1] in ['.py', '.pyx', '.tex', '.pxi', '.sage', '.rst']):
         return True
@@ -121,14 +100,16 @@ def test_file(F):
     """
     outfile = tempfile.NamedTemporaryFile()
     base, ext = os.path.splitext(F)
-    if use_sage_only or ext == '.sage':
-        cmd =  'doctest_tex ' + opts
-    elif ext in ['.py', '.pyx', '.tex', '.pxi', '.rst']:
-        cmd = 'doctest '+opts
+
+    cmd = 'doctest ' + opts
+    if SAGE_SITE in os.path.realpath(F) and not '-force_lib' in cmd:
+        cmd += ' -force_lib'
+
     filestr = os.path.split(F)[1]
     for i in range(0,numiteration):
         os.chdir(os.path.dirname(F))
-        s = 'bash -c "%s/local/bin/sage-%s %s > %s" ' %(SAGE_ROOT, cmd, filestr, outfile.name)
+        command = os.path.join(SAGE_ROOT, 'local', 'bin', 'sage-%s' % cmd)
+        s = 'bash -c "%s %s > %s" ' % (command, filestr, outfile.name)
         try:
             t = time.time()
             ret = os.system(s)
@@ -156,12 +137,14 @@ def process_result(result):
     finished_time = result[2]
     ol = result[3]
     if ret != 0:
-        if ret == -4:
+        if ret == -100:
             numfail = ol.count('Expected:') + ol.count('Expected nothing') + ol.count('Exception raised:')
             failed.append(abs(F)+(" # %s doctests failed" % numfail))
             ret = numfail
+        elif ret == -4:
+            failed.append(abs(F)+" # Exception from doctest framework")
         elif ret == -3:
-            failed.append(abs(F)+" # Segfault")
+            failed.append(abs(F)+" # Killed/crashed")
         elif ret == -2:
             failed.append(abs(F)+" # KeyboardInterrupt")
         elif ret == -1:
@@ -203,7 +186,7 @@ def populatefilelist(filelist):
                 continue
             if not os.path.isabs(FF):
                 cwd = os.getcwd()
-                files.append(cwd + '/' +  FF)
+                files.append(os.path.join(cwd, FF))
             else:
                 files.append(FF)
             continue
@@ -214,9 +197,7 @@ def populatefilelist(filelist):
         for root, dirs, lfiles in os.walk(walkdir):
             for F in lfiles:
                 base, ext = os.path.splitext(F)
-                if use_sage_only and ext == '.sage':
-                    continue
-                elif not (ext in ['.py', '.pyx', '.tex', '.pxi', '.rst']):
+                if not (ext in ['.sage', '.py', '.pyx', '.tex', '.pxi', '.rst']):
                     continue
                 elif '__nodoctest__' in files:
                     continue
@@ -227,35 +208,64 @@ def populatefilelist(filelist):
                     continue
                 files.append(appendstr)
             for D in dirs:
-                if '#' in D or '/notes' in D:
+                if '#' in D or (os.path.sep + 'notes' in D):
                     dirs.remove(D)
     filemutex.release()
     return 0
 
 
-
-
-
-
-
-
-
-
 for gr in range(0,numglobaliteration):
-
-    try:
-        i = argv.index('-sage')
-        del argv[i]
-        use_sage_only = True
-    except ValueError:
-        use_sage_only = False
 
     opts = ' '.join([X for X in argv if X[0] == '-'])
     argv = [X for X in argv if X[0] != '-']
-    infiles = argv[2:]
-    if len(infiles) == 0:
-        print "Usage: sage -t <files or directories>."
-        print "For more information, type 'sage -help'."
+
+    try: 
+        numthreads = int(argv[1])
+        infiles = argv[2:]
+    except ValueError: # can't convert first arg to an integer: arg was probably omitted
+        numthreads = 1
+        infiles = argv[1:]
+
+    if '-sagenb' in opts:
+        opts = opts.replace('--sagenb', '').replace('-sagenb', '')
+
+        # Find SageNB's home.
+        from pkg_resources import Requirement, working_set
+        sagenb_loc = working_set.find(Requirement.parse('sagenb')).location
+
+        # In case we're using setuptools' "develop" mode.
+        if not SAGE_SITE in sagenb_loc:
+            opts += ' -force_lib'
+
+        infiles.append(os.path.join(sagenb_loc, 'sagenb'))
+
+    if numthreads == 0:
+        # Set numthreads to be the number of processors, with a default
+        # maximum of 8.
+        #
+        # The detection of number of processors might not be reliable on some
+        # platforms. On a Sun SPARC T5240 (t2.math), the reported number of
+        # processors might not correspond to the actual number of processors.
+        # See tickets #6283, #7011, and the file SAGE_ROOT/makefile.
+        #
+        # WARNING: If cpu_count() below reports <= 8 for your machine
+        # and you *don't* want to use all the cores/processors on your
+        # system for parallel doctesting, use a (sensible) positive
+        # integer.
+        #
+        # If cpu_count() reports > 8 and you want to use that many
+        # threads, you must manually specify the number of threads.
+        try:
+            numthreads = min(8, multiprocessing.cpu_count())
+        except NotImplementedError:
+            numthreads = 1
+
+    if numthreads < 1 or len(infiles) == 0:
+        if numthreads < 1:
+            print "Usage: sage -tp <numthreads> <files or directories>: <numthreads> must be positive."
+        else:
+            print "Usage: sage -tp <numthreads> <files or directories>: no files or directories specified."
+        print "For more information, type 'sage -advanced'."
         sys.exit(1)
 
     infiles.sort()
@@ -266,11 +276,12 @@ for gr in range(0,numglobaliteration):
     filemutex = thread.allocate_lock()
     printmutex = thread.allocate_lock()
     #Pick a filename for the timing files -- long vs normal
-    time_file_name = os.environ["SAGE_TESTDIR"]+"/"
     if opts.count("-long"):
-        time_file_name+=".ptest_timing_long"
+        time_file_name = os.path.join(os.environ["SAGE_TESTDIR"],
+                                      '.ptest_timing_long')
     else:
-        time_file_name+=".ptest_timing"
+        time_file_name = os.path.join(os.environ["SAGE_TESTDIR"],
+                                      '.ptest_timing')
     time_dict = { }
     try:
         with open(time_file_name) as time_file:
@@ -279,25 +290,25 @@ for gr in range(0,numglobaliteration):
             print "Using long cached timings to run longest doctests first."
         else:
             print "Using cached timings to run longest doctests first."
+        from copy import copy
+        time_dict_old = copy(time_dict)
     except:
         time_dict = { }
         if opts.count("-long"):
-            print "No long cached timings exist; will create upon successful finish."
+            print "No long cached timings exist; will create for successful files."
         else:
-            print "No cached timings exist; will create upon successful finish."
+            print "No cached timings exist; will create for successful files."
+        time_dict_old = None
     done = False
-
-    numthreads = int(argv[1])
 
     CUR = abspath(os.getcwd())
 
     failed = []
 
     SAGE_ROOT=os.environ['SAGE_ROOT']
-    TMP=SAGE_ROOT + "/tmp/test/"
+    TMP = os.path.join(os.environ['SAGE_TESTDIR'], 'tmp', 'test')
     if not os.path.exists(TMP):
         os.makedirs(TMP)
-
 
     populatefilelist(infiles)
     #Sort the files by test time
@@ -305,10 +316,21 @@ for gr in range(0,numglobaliteration):
     files.reverse()
     interrupt = False
 
-    print "Doctesting %i files doing %i jobs in parallel" % (len(files), numthreads)
+    numthreads = min(numthreads, len(files))  # don't use more threads than files
+        
+    if len(files) == 1:
+        file_str = "1 file"
+    else:
+        file_str = "%i files" % len(files)
+    if numthreads == 1:
+        jobs_str = "using 1 thread"  # not in parallel if numthreads is 1
+    else:
+        jobs_str = "doing %s jobs in parallel" % numthreads
 
+    print "Doctesting %s %s" % (file_str, jobs_str)
+        
     try:
-        from processing import Pool
+        from multiprocessing import Pool
         p = Pool(numthreads)
         for r in p.imap_unordered(test_file, files):
             #The format is  (F, ret, finished_time, ol)
@@ -326,19 +348,34 @@ for gr in range(0,numglobaliteration):
             print "All tests passed!"
         else:
             print "Keyboard Interrupt: All tests that ran passed."
-        #Only update timings if we are doing something standard
-        if opts=="-long" or len(opts)==0:
-            with open(time_file_name,"w") as time_file:
-                pickle.dump(time_dict, time_file)
-                print "Timings have been updated."
     else:
         if interrupt:
             print "Keyboard Interrupt, not all tests ran"
+        elif opts=="-long" or len(opts)==0:
+            time_dict_ran = time_dict
+            time_dict = { }
+            failed_files = { }
+            if opts=="-long":
+                for F in failed:
+                    failed_files[F.split('#')[0].split()[3]] = None
+            else:
+                for F in failed:
+                    failed_files[F.split('#')[0].split()[2]] = None
+            for F in time_dict_ran:
+                if F not in failed_files:
+                    time_dict[F] = time_dict_ran[F]
+            if time_dict_old is not None:
+                for F in time_dict_old:
+                    if F not in time_dict:
+                        time_dict[F] = time_dict_old[F]
         print "\nThe following tests failed:\n"
         for i in range(len(failed)):
                print "\t", failed[i]
         print "-"*int(70)
+    #Only update timings if we are doing something standard
+    if (opts=="-long" or len(opts)==0) and not interrupt:
+        with open(time_file_name,"w") as time_file:
+            pickle.dump(time_dict, time_file)
+            print "Timings have been updated."
 
     print "Total time for all tests: %.1f seconds"%(time.time() - t0)
-
-
