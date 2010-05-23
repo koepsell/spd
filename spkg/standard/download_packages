@@ -11,12 +11,12 @@ fi
 
 
 # SPD minimum:
-$WGET $SAGE_STANDARD/termcap-1.3.1.p0.spkg
-$WGET $SAGE_STANDARD/zlib-1.2.3.p4.spkg
-$WGET $SAGE_STANDARD/readline-5.2.p6.spkg
-$WGET $SAGE_STANDARD/python-2.5.4.p1.spkg
-$WGET $SPD_STANDARD/ipython-bzr1174.spkg
-$WGET $SAGE_STANDARD/cython-0.11.1.p0.spkg
+$WGET $SAGE_STANDARD/termcap-1.3.1.p1.spkg
+$WGET $SAGE_STANDARD/zlib-1.2.3.p5.spkg
+$WGET $SAGE_STANDARD/readline-6.0.p1.spkg
+$WGET $SAGE_STANDARD/python-2.6.4.p7.spkg
+$WGET $SPD_STANDARD/ipython-0.9.1.p0.spkg
+$WGET $SAGE_STANDARD/cython-0.12.1.spkg
 
 # notebook:
 $WGET $SAGE_STANDARD/pexpect-2.0.p4.spkg
@@ -37,7 +37,7 @@ $WGET $SPD_STANDARD/spd_notebook-3.4.1-5.spkg
 
 # numpy, scipy matplotlib and sympy
 $WGET $SAGE_STANDARD/fortran-20100428.spkg
-$WGET $SAGE_STANDARD/lapack-20071123.p0.spkg
+$WGET $SAGE_STANDARD/lapack-20071123.p1.spkg
 $WGET $SAGE_STANDARD/blas-20070724.spkg
 $WGET $SAGE_STANDARD/atlas-3.8.3.p12.spkg
 $WGET $SAGE_STANDARD/numpy-1.3.0.p3.spkg
