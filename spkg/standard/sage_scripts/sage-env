@@ -24,7 +24,7 @@
 
 # GUESS SAGE_ROOT from pwd
 SAVEDIR="`pwd`"
-if [ -f sage -a -d spkg ]; then
+if [ -f spd -a -d spkg ]; then
     GUESSED_SAGE_ROOT="`pwd`"
 else 
     if [ -f ../../spd -a -d ../../spkg ]; then
