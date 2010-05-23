@@ -44,4 +44,3 @@ $WGET $SAGE_STANDARD/freetype-2.3.5.p0.spkg
 $WGET $SAGE_STANDARD/libpng-1.2.35.spkg
 $WGET $SAGE_STANDARD/matplotlib-0.98.5.3rc0-svn6910.p3.spkg
 $WGET $SAGE_STANDARD/sympy-0.6.4.spkg
-
