@@ -25,9 +25,9 @@ if [ ! -f "$SAGE_LOCAL/bin/sage-spkg" ]; then
 fi
 
 cd "$SAGE_ROOT/spkg/standard"
-cp -r sage_scripts sage_scripts-3.4.2
-tar cjf sage_scripts-3.4.2.spkg sage_scripts-3.4.2
-rm -r sage_scripts-3.4.2
+cp -r sage_scripts sage_scripts-4.4.2
+tar cjf sage_scripts-4.4.2.spkg sage_scripts-4.4.2
+rm -r sage_scripts-4.4.2
 cd "$CUR"
 
 ############
