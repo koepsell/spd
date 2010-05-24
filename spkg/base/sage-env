@@ -48,8 +48,8 @@ if [ "$SAGE_ROOT" = "" ]; then
         export SAGE_ROOT
     fi
 else
-    if [ -f "$SAGE_ROOT"/sage -a -d "$SAGE_ROOT"/spkg ]; then
-        # SAGE_ROOT points to a sage installation as expected
+    if [ -f "$SAGE_ROOT"/spd -a -d "$SAGE_ROOT"/spkg ]; then
+        # SAGE_ROOT points to a spd installation as expected
         if [ "$SAGE_ROOT" != "$GUESSED_SAGE_ROOT" ]; then
             echo "Warning: Attempted to overwrite SAGE_ROOT environment variable"
         fi
