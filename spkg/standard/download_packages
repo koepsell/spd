@@ -23,12 +23,13 @@ $WGET $SAGE_STANDARD/pexpect-2.0.p4.spkg
 $WGET $SAGE_STANDARD/twisted-9.0.p2.spkg
 # $WGET $SAGE_STANDARD/twisted-8.1.0.p2.spkg
 $WGET $SAGE_STANDARD/setuptools-0.6c9.p0.spkg
-$WGET $SAGE_STANDARD/jinja-1.2.p0.spkg
+# $WGET $SAGE_STANDARD/jinja-1.2.p0.spkg
+$WGET $SAGE_STANDARD/jinja2-2.1.1.p0.spkg
 $WGET $SAGE_STANDARD/libgpg_error-1.6.p3.spkg
 $WGET $SAGE_STANDARD/libgcrypt-1.4.4.p2.spkg
 $WGET $SAGE_STANDARD/gnutls-2.2.1.p5.spkg
 $WGET $SAGE_STANDARD/python_gnutls-1.1.4.p7.spkg
-$WGET $SPD_STANDARD/sagenb-0.8.p2.spkg
+$WGET $SPD_STANDARD/sagenb-0.8.p3.spkg
 # the following packages are not part of sage 4.4.2
 # $WGET $SAGE_STANDARD/jquery-1.2.6.p0.spkg
 # $WGET $SAGE_STANDARD/jqueryui-1.6r807svn.p0.spkg
