@@ -28,12 +28,13 @@ $WGET $SAGE_STANDARD/libgpg_error-1.6.p3.spkg
 $WGET $SAGE_STANDARD/libgcrypt-1.4.4.p2.spkg
 $WGET $SAGE_STANDARD/gnutls-2.2.1.p5.spkg
 $WGET $SAGE_STANDARD/python_gnutls-1.1.4.p7.spkg
+$WGET $SPD_STANDARD/sagenb-0.8.p2.spkg
 # the following packages are not part of sage 4.4.2
-$WGET $SAGE_STANDARD/jquery-1.2.6.p0.spkg
-$WGET $SAGE_STANDARD/jqueryui-1.6r807svn.p0.spkg
-$WGET $SAGE_STANDARD/jsmath-3.6b.p1.spkg
-$WGET $SAGE_STANDARD/tinyMCE-3.2.0.2.p0.spkg
-$WGET $SPD_STANDARD/spd_notebook-3.4.1-5.spkg
+# $WGET $SAGE_STANDARD/jquery-1.2.6.p0.spkg
+# $WGET $SAGE_STANDARD/jqueryui-1.6r807svn.p0.spkg
+# $WGET $SAGE_STANDARD/jsmath-3.6b.p1.spkg
+# $WGET $SAGE_STANDARD/tinyMCE-3.2.0.2.p0.spkg
+# $WGET $SPD_STANDARD/spd_notebook-3.4.1-5.spkg
 
 # numpy, scipy matplotlib and sympy
 $WGET $SAGE_STANDARD/fortran-20100428.spkg
