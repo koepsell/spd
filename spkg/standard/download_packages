@@ -21,7 +21,6 @@ $WGET $SAGE_STANDARD/cython-0.12.1.spkg
 # notebook:
 $WGET $SAGE_STANDARD/pexpect-2.0.p4.spkg
 $WGET $SAGE_STANDARD/twisted-9.0.p2.spkg
-# $WGET $SAGE_STANDARD/twisted-8.1.0.p2.spkg
 $WGET $SAGE_STANDARD/setuptools-0.6c9.p0.spkg
 # $WGET $SAGE_STANDARD/jinja-1.2.p0.spkg
 $WGET $SAGE_STANDARD/jinja2-2.1.1.p0.spkg
@@ -41,7 +40,8 @@ $WGET $SPD_STANDARD/sagenb-0.8.p3.spkg
 $WGET $SAGE_STANDARD/fortran-20100428.spkg
 $WGET $SAGE_STANDARD/lapack-20071123.p1.spkg
 $WGET $SAGE_STANDARD/blas-20070724.spkg
-$WGET $SAGE_STANDARD/atlas-3.8.3.p12.spkg
+# $WGET $SAGE_STANDARD/atlas-3.8.3.p12.spkg
+$WGET $SPD_STANDARD/atlas-3.8.3-pthread.p13.spkg
 $WGET $SAGE_STANDARD/numpy-1.3.0.p3.spkg
 $WGET $SAGE_STANDARD/scipy-0.7.p4.spkg
 $WGET $SAGE_STANDARD/freetype-2.3.5.p2.spkg
